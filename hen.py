@@ -1,15 +1,19 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine
+import sqlite3
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-import os
 from datetime import datetime
+import os
 
-# Create a SQLite DB engine
-engine = create_engine('sqlite:///uploaded_data.db')
+# Function to insert data into SQLite using sqlite3
+def insert_into_db(df, table_name, db_name="uploaded_data.db"):
+    conn = sqlite3.connect(db_name)
+    df.to_sql(table_name, conn, if_exists="replace", index=False)
+    conn.commit()
+    conn.close()
 
-# Function to generate PDF report using ReportLab
+# Function to generate a summary report PDF using ReportLab
 def generate_pdf_report(df, filename="summary_report.pdf"):
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
@@ -39,23 +43,23 @@ def generate_pdf_report(df, filename="summary_report.pdf"):
     return filename
 
 # Streamlit UI
-st.title("📥 CSV Ingestion Page")
+st.title("📥 CSV Ingestion Page (No SQLAlchemy)")
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
-if uploaded_file:
+if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-
     st.success("✅ File Uploaded Successfully")
     st.dataframe(df.head())
 
-    table_name = os.path.splitext(uploaded_file.name)[0]
+    table_name = os.path.splitext(uploaded_file.name)[0].replace("-", "").replace(" ", "")
     
-    # Save to SQLite database
-    df.to_sql(table_name, con=engine, index=False, if_exists='replace')
-    st.success(f"✅ Data successfully ingested into table: {table_name}")
+    # Save to database using sqlite3
+    insert_into_db(df, table_name)
+    st.success(f"✅ Data successfully saved into SQLite table: {table_name}")
 
     # Generate and download summary report
     report_file = generate_pdf_report(df)
     with open(report_file, "rb") as f:
         st.download_button("📄 Download Summary Report (PDF)", f, file_name=report_file)
+
