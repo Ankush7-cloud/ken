@@ -1,65 +1,73 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import os
 
-# Function to insert data into SQLite using sqlite3
-def insert_into_db(df, table_name, db_name="uploaded_data.db"):
-    conn = sqlite3.connect(db_name)
-    df.to_sql(table_name, conn, if_exists="replace", index=False)
-    conn.commit()
-    conn.close()
+# Function to calculate statistics
+def calculate_summary(df, columns):
+    summary = {}
+    for col in columns:
+        if col in df.columns:
+            summary[col] = {
+                'max': df[col].max(),
+                'min': df[col].min(),
+                'average': df[col].mean()
+            }
+    return summary
 
-# Function to generate a summary report PDF using ReportLab
-def generate_pdf_report(df, filename="summary_report.pdf"):
+# Function to generate PDF report
+def generate_summary_pdf(summary_dict, filename="summary_report.pdf"):
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
+    y = height - 50
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, height - 50, "Summary Report")
+    c.drawString(50, y, "COVID Data Summary Report")
+    y -= 30
 
     c.setFont("Helvetica", 12)
-    c.drawString(50, height - 80, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    c.drawString(50, height - 100, f"Number of Rows: {df.shape[0]}")
-    c.drawString(50, height - 120, f"Number of Columns: {df.shape[1]}")
+    c.drawString(50, y, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    y -= 40
 
-    y = height - 160
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y, "Column Summary:")
-    y -= 20
-    c.setFont("Helvetica", 10)
-    for col in df.columns:
-        col_type = str(df[col].dtype)
-        c.drawString(60, y, f"{col}: {col_type}")
+    for col, stats in summary_dict.items():
+        c.drawString(50, y, f"Column: {col}")
+        y -= 20
+        c.setFont("Helvetica", 11)
+        c.drawString(70, y, f"Max: {stats['max']}")
         y -= 15
-        if y < 50:
+        c.drawString(70, y, f"Min: {stats['min']}")
+        y -= 15
+        c.drawString(70, y, f"Average: {round(stats['average'], 2)}")
+        y -= 30
+        c.setFont("Helvetica-Bold", 12)
+        if y < 100:
             c.showPage()
             y = height - 50
 
     c.save()
     return filename
 
-# Streamlit UI
-st.title("📥 CSV Ingestion Page ")
+# Streamlit App
+st.title("📊 COVID Summary Report Generator")
 
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+uploaded_file = st.file_uploader("Upload counter_wise_latest2.csv", type=["csv"])
 
-if uploaded_file is not None:
+if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    st.success("✅ File Uploaded Successfully")
+
+    st.success("✅ File uploaded successfully")
     st.dataframe(df.head())
 
-    table_name = os.path.splitext(uploaded_file.name)[0].replace("-", "").replace(" ", "")
-    
-    # Save to database using sqlite3
-    insert_into_db(df, table_name)
-    st.success(f"✅ Data successfully saved into SQLite table: {table_name}")
+    columns_to_summarize = ['new_deaths', 'new_cases', 'recovered']
+    summary = calculate_summary(df, columns_to_summarize)
 
-    # Generate and download summary report
-    report_file = generate_pdf_report(df)
-    with open(report_file, "rb") as f:
-        st.download_button("📄 Download Summary Report (PDF)", f, file_name=report_file)
+    st.subheader("📋 Summary Table")
+    st.write(pd.DataFrame(summary).T)
+
+    report_path = generate_summary_pdf(summary)
+    with open(report_path, "rb") as f:
+        st.download_button("📄 Download PDF Summary", f, file_name="summary_report.pdf")
 
