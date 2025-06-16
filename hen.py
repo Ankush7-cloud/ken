@@ -43,7 +43,7 @@ def generate_pdf_report(df, filename="summary_report.pdf"):
     return filename
 
 # Streamlit UI
-st.title("📥 CSV Ingestion Page (No SQLAlchemy)")
+st.title("📥 CSV Ingestion Page ")
 
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
