@@ -20,7 +20,7 @@ def compute_stats_duckdb(df, columns):
     stats_query += ", ".join(stats_parts)
     stats_query += " FROM covid_data"
 
-    result = duckdb.sql(stats_query).fetchdf()
+    result = duckdb.sql(stats_query).to_df()
     summary = {}
     for col in columns:
         summary[col] = {
