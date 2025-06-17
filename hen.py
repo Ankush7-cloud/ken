@@ -77,7 +77,7 @@ if uploaded_file is not None:
     st.dataframe(df.head())
 
     # Clean numeric columns
-    numeric_cols = ["new_cases", "new_deaths"]
+    numeric_cols = ["New cases", "New deaths"]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
