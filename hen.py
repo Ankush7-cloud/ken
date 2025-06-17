@@ -1,46 +1,30 @@
 import streamlit as st
 import pandas as pd
-import duckdb
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
 
-# Function to compute stats using DuckDB
-def compute_stats_duckdb(df, columns):
-    # Create DuckDB relation from DataFrame
-    rel = duckdb.from_df(df)
-
-    stats_query = "SELECT "
-    stats_parts = []
-    for col in columns:
-        stats_parts.append(f"AVG({col}) AS {col}_mean")
-        stats_parts.append(f"STDDEV_SAMP({col}) AS {col}_std")
-        stats_parts.append(f"MAX({col}) AS {col}_max")
-        stats_parts.append(f"MIN({col}) AS {col}_min")
-    stats_query += ", ".join(stats_parts)
-    stats_query += " FROM rel"
-
-    result = rel.query("rel", stats_query).to_df()
-
-    # Convert result to structured dict
+# Function to compute statistics using Pandas
+def compute_stats(df, columns):
     summary = {}
     for col in columns:
+        clean_col = pd.to_numeric(df[col], errors='coerce')  # Convert to numeric
         summary[col] = {
-            "mean": round(result[f"{col}_mean"][0], 2),
-            "std": round(result[f"{col}_std"][0], 2),
-            "max": round(result[f"{col}_max"][0], 2),
-            "min": round(result[f"{col}_min"][0], 2)
+            "mean": round(clean_col.mean(), 2),
+            "std": round(clean_col.std(), 2),
+            "max": round(clean_col.max(), 2),
+            "min": round(clean_col.min(), 2)
         }
     return summary
 
-# Function to generate PDF report
+# Function to generate PDF
 def generate_pdf(stats, filename="summary_report.pdf"):
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
     y = height - 50
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, "COVID Summary Report (via DuckDB)")
+    c.drawString(50, y, "COVID Summary Report (via Pandas)")
     y -= 30
 
     c.setFont("Helvetica", 12)
@@ -68,8 +52,8 @@ def generate_pdf(stats, filename="summary_report.pdf"):
     c.save()
     return filename
 
-# Streamlit App
-st.title("📊 COVID Summary Report Using DuckDB")
+# Streamlit UI
+st.title("📊 COVID Summary Report (No DuckDB)")
 
 uploaded_file = st.file_uploader("Upload counter_wise_latest2.csv", type="csv")
 
@@ -78,17 +62,20 @@ if uploaded_file:
     st.success("✅ File Uploaded Successfully")
     st.dataframe(df.head())
 
-    # Clean numeric columns
-    df['New cases'] = pd.to_numeric(df['New cases'], errors='coerce')
-    df['New deaths'] = pd.to_numeric(df['New deaths'], errors='coerce')
+    # Ensure required columns exist
+    required_cols = ['New cases', 'New deaths']
+    if not all(col in df.columns for col in required_cols):
+        st.error("❌ Required columns ('New cases', 'New deaths') not found in the file.")
+    else:
+        # Compute stats
+        stats = compute_stats(df, required_cols)
 
-    columns = ['New cases', 'New deaths']
-    stats = compute_stats_duckdb(df, columns)
+        # Show stats table
+        st.subheader("📋 Summary Statistics")
+        stats_df = pd.DataFrame.from_dict(stats, orient='index')
+        st.write(stats_df)
 
-    st.subheader("📋 Summary Statistics")
-    stats_df = pd.DataFrame.from_dict(stats, orient='index')
-    st.write(stats_df)
-
-    pdf_path = generate_pdf(stats)
-    with open(pdf_path, "rb") as f:
-        st.download_button("📄 Download PDF Summary", f, file_name="summary_report_duckdb.pdf")
+        # Generate PDF and provide download button
+        pdf_file = generate_pdf(stats)
+        with open(pdf_file, "rb") as f:
+            st.download_button("📄 Download PDF Summary", f, file_name="summary_report.pdf")
