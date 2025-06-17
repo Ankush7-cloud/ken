@@ -3,22 +3,23 @@ import pandas as pd
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from datetime import datetime
-import os
 
-# Function to calculate statistics
-def calculate_summary(df, columns):
-    summary = {}
+# Function to calculate stats
+def compute_stats(df, columns):
+    stats = {}
     for col in columns:
         if col in df.columns:
-            summary[col] = {
-                'max': df[col].max(),
-                'min': df[col].min(),
-                'average': df[col].mean()
+            series = pd.to_numeric(df[col], errors='coerce')  # handles any non-numeric entries
+            stats[col] = {
+                'mean': round(series.mean(), 2),
+                'std': round(series.std(), 2),
+                'max': round(series.max(), 2),
+                'min': round(series.min(), 2)
             }
-    return summary
+    return stats
 
 # Function to generate PDF report
-def generate_summary_pdf(summary_dict, filename="summary_report.pdf"):
+def generate_pdf(stats, filename="summary_report.pdf"):
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
     y = height - 50
@@ -32,15 +33,17 @@ def generate_summary_pdf(summary_dict, filename="summary_report.pdf"):
     y -= 40
 
     c.setFont("Helvetica-Bold", 12)
-    for col, stats in summary_dict.items():
+    for col, stat in stats.items():
         c.drawString(50, y, f"Column: {col}")
         y -= 20
         c.setFont("Helvetica", 11)
-        c.drawString(70, y, f"Max: {stats['max']}")
+        c.drawString(70, y, f"Mean: {stat['mean']}")
         y -= 15
-        c.drawString(70, y, f"Min: {stats['min']}")
+        c.drawString(70, y, f"Standard Deviation: {stat['std']}")
         y -= 15
-        c.drawString(70, y, f"Average: {round(stats['average'], 2)}")
+        c.drawString(70, y, f"Max: {stat['max']}")
+        y -= 15
+        c.drawString(70, y, f"Min: {stat['min']}")
         y -= 30
         c.setFont("Helvetica-Bold", 12)
         if y < 100:
@@ -50,24 +53,22 @@ def generate_summary_pdf(summary_dict, filename="summary_report.pdf"):
     c.save()
     return filename
 
-# Streamlit App
-st.title("📊 COVID Summary Report Generator")
+# Streamlit UI
+st.title("📈 COVID Summary: Mean & Standard Deviation")
 
-uploaded_file = st.file_uploader("Upload counter_wise_latest2.csv", type=["csv"])
+uploaded_file = st.file_uploader("Upload counter_wise_latest2.csv", type="csv")
 
-if uploaded_file:
+if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-
-    st.success("✅ File uploaded successfully")
+    st.success("✅ File Uploaded Successfully")
     st.dataframe(df.head())
 
-    columns_to_summarize = ['new_deaths', 'new_cases', 'recovered']
-    summary = calculate_summary(df, columns_to_summarize)
+    selected_columns = ["New cases", "New deaths"]
+    summary_stats = compute_stats(df, selected_columns)
 
     st.subheader("📋 Summary Table")
-    st.write(pd.DataFrame(summary).T)
+    st.write(pd.DataFrame(summary_stats).T)
 
-    report_path = generate_summary_pdf(summary)
+    report_path = generate_pdf(summary_stats)
     with open(report_path, "rb") as f:
         st.download_button("📄 Download PDF Summary", f, file_name="summary_report.pdf")
-
