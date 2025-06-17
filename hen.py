@@ -7,20 +7,21 @@ from datetime import datetime
 
 # Function to compute stats using DuckDB
 def compute_stats_duckdb(df, columns):
-    # Register dataframe as DuckDB view
-    duckdb.register("covid_data", df)
-
+    # Create virtual DuckDB table from DataFrame using relation
     stats_query = "SELECT "
     stats_parts = []
     for col in columns:
-        stats_parts.append(f"AVG({col}) as {col}_mean")
-        stats_parts.append(f"STDDEV_SAMP({col}) as {col}_std")
-        stats_parts.append(f"MAX({col}) as {col}_max")
-        stats_parts.append(f"MIN({col}) as {col}_min")
+        stats_parts.append(f"AVG({col}) AS {col}_mean")
+        stats_parts.append(f"STDDEV_SAMP({col}) AS {col}_std")
+        stats_parts.append(f"MAX({col}) AS {col}_max")
+        stats_parts.append(f"MIN({col}) AS {col}_min")
     stats_query += ", ".join(stats_parts)
-    stats_query += " FROM covid_data"
+    stats_query += " FROM df"
 
-    result = duckdb.sql(stats_query).to_df()
+    # DuckDB query using relation
+    result = duckdb.query(stats_query).to_df()
+
+    # Build summary dictionary
     summary = {}
     for col in columns:
         summary[col] = {
@@ -31,14 +32,14 @@ def compute_stats_duckdb(df, columns):
         }
     return summary
 
-# Generate PDF report
+# Function to generate PDF report
 def generate_pdf(stats, filename="summary_report.pdf"):
     c = canvas.Canvas(filename, pagesize=letter)
     width, height = letter
     y = height - 50
 
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(50, y, "COVID Data Summary Report (via DuckDB)")
+    c.drawString(50, y, "COVID Summary Report (via DuckDB)")
     y -= 30
 
     c.setFont("Helvetica", 12)
@@ -66,29 +67,28 @@ def generate_pdf(stats, filename="summary_report.pdf"):
     c.save()
     return filename
 
-# Streamlit UI
+# Streamlit App
 st.title("📊 COVID Summary Report Using DuckDB")
 
 uploaded_file = st.file_uploader("Upload counter_wise_latest2.csv", type="csv")
 
-if uploaded_file is not None:
+if uploaded_file:
     df = pd.read_csv(uploaded_file)
     st.success("✅ File Uploaded Successfully")
     st.dataframe(df.head())
 
-    # Clean numeric columns
-    numeric_cols = ["New cases", "New deaths"]
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
+    # Ensure numeric conversion
+    df['New cases'] = pd.to_numeric(df['New cases'], errors='coerce')
+    df['New deaths'] = pd.to_numeric(df['New deaths'], errors='coerce')
 
-    # Compute stats using DuckDB
-    stats = compute_stats_duckdb(df, numeric_cols)
+    columns = ['New cases', 'New deaths']
+    stats = compute_stats_duckdb(df, columns)
 
-    # Show summary table
-    st.subheader("📋 Summary Statistics (via DuckDB)")
-    st.write(pd.DataFrame(stats).T)
+    # ✅ Correct line 85 fix:
+    stats_df = pd.DataFrame.from_dict(stats, orient='index')
+    st.subheader("📋 Summary Statistics")
+    st.write(stats_df)
 
-    # Generate and download PDF
-    report_file = generate_pdf(stats)
-    with open(report_file, "rb") as f:
+    pdf_path = generate_pdf(stats)
+    with open(pdf_path, "rb") as f:
         st.download_button("📄 Download PDF Summary", f, file_name="summary_report_duckdb.pdf")
