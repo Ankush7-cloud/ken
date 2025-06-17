@@ -53,7 +53,7 @@ def generate_pdf(stats, filename="summary_report.pdf"):
     return filename
 
 # Streamlit UI
-st.title("📊 COVID Summary Report (No DuckDB)")
+st.title("📊 COVID Summary Report ")
 
 uploaded_file = st.file_uploader("Upload counter_wise_latest2.csv", type="csv")
 
