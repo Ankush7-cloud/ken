@@ -7,7 +7,9 @@ from datetime import datetime
 
 # Function to compute stats using DuckDB
 def compute_stats_duckdb(df, columns):
-    # Create virtual DuckDB table from DataFrame using relation
+    # Create DuckDB relation from DataFrame
+    rel = duckdb.from_df(df)
+
     stats_query = "SELECT "
     stats_parts = []
     for col in columns:
@@ -16,12 +18,11 @@ def compute_stats_duckdb(df, columns):
         stats_parts.append(f"MAX({col}) AS {col}_max")
         stats_parts.append(f"MIN({col}) AS {col}_min")
     stats_query += ", ".join(stats_parts)
-    stats_query += " FROM df"
+    stats_query += " FROM rel"
 
-    # DuckDB query using relation
-    result = duckdb.query(stats_query).to_df()
+    result = rel.query("rel", stats_query).to_df()
 
-    # Build summary dictionary
+    # Convert result to structured dict
     summary = {}
     for col in columns:
         summary[col] = {
@@ -77,16 +78,15 @@ if uploaded_file:
     st.success("✅ File Uploaded Successfully")
     st.dataframe(df.head())
 
-    # Ensure numeric conversion
+    # Clean numeric columns
     df['New cases'] = pd.to_numeric(df['New cases'], errors='coerce')
     df['New deaths'] = pd.to_numeric(df['New deaths'], errors='coerce')
 
     columns = ['New cases', 'New deaths']
     stats = compute_stats_duckdb(df, columns)
 
-    # ✅ Correct line 85 fix:
-    stats_df = pd.DataFrame.from_dict(stats, orient='index')
     st.subheader("📋 Summary Statistics")
+    stats_df = pd.DataFrame.from_dict(stats, orient='index')
     st.write(stats_df)
 
     pdf_path = generate_pdf(stats)
